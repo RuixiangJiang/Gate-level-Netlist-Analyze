@@ -5,7 +5,16 @@ from NodeDefinition import *
 
 DOT_VAR_RE = re.compile(r'^(n\d+)\s*\[\s*shape=(octagon|diamond).*?label="([^"]+)"')
 DOT_GATE_RE = re.compile(r'^(c\d+)\s*\[\s*shape=record,\s*label="(.+?)"')
-DOT_EDGE_RE = re.compile(r'^((?:n|c)\d+)(?::(p\d+))?(?::[nesw])?\s*->\s*((?:n|c)\d+)(?::(p\d+))?(?::[nesw])?')
+DOT_EDGE_RE = re.compile(
+    r'^((?:n|c|x)\d+)'      # allow node ids starting with n / c / x
+    r'(?::(p\d+))?'         # optional source port tag like :p12
+    r'(?::[nesw])?'         # optional compass dir like :e/:w/:n/:s
+    r'\s*->\s*'
+    r'((?:n|c|x)\d+)'       # allow dest ids starting with n / c / x
+    r'(?::(p\d+))?'         # optional dest port tag
+    r'(?::[nesw])?'         # optional compass dir
+    r'.*$'                  # ignore the [ ... ]; part at the end of the line
+)
 PORT_TAG_RE = re.compile(r'<(p\d+)>\s*([^|}\s]+)')
 CENTRAL_LABEL_RE = re.compile(r'\}\|\s*([^|]+?)\s*\|\{')
 

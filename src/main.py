@@ -18,6 +18,7 @@ var_nodes, gates, edges_raw = parse_yosys_dot(f"../data/{args.dot}/{args.dot}.do
 if not gates:
     raise SystemExit(f"[ERROR] No gates parsed from DOT: {args.dot}")
 
+edges_raw = collapse_x_nodes(edges_raw)
 edges_sem, node_meta = build_semantic_graph(lib_pin_dirs, var_nodes, gates, edges_raw)
 
 nodes_csv, edges_csv = save_csv_nodes_edges(args.out_prefix, node_meta, edges_sem)

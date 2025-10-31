@@ -1,6 +1,57 @@
 from NodeDefinition import *
 from LibParser import *
 
+
+def collapse_x_nodes(edges_raw: List[Tuple[str, str, str, str]]) -> List[Tuple[str, str, str, str]]:
+    """
+    Remove intermediate 'x...' routing nodes inserted by Yosys 'show'.
+
+    Any pattern like:
+        A -> xK -> B
+    is turned into:
+        A -> B
+
+    We keep DOT port tags (pXX) on the original ends:
+      - use the source port tag from A->xK
+      - use the dest   port tag from xK->B
+
+    Notes:
+      - xK can have multiple fanouts, so one input edge may expand to many (A->B1, A->B2, ...)
+      - xK can have multiple fanins (rare), we create all pairwise combinations.
+    """
+    fanin: Dict[str, List[Tuple[str, str, str, str]]] = {}
+    fanout: Dict[str, List[Tuple[str, str, str, str]]] = {}
+
+    for s, sp, d, dp in edges_raw:
+        fanout.setdefault(s, []).append((s, sp, d, dp))
+        fanin.setdefault(d, []).append((s, sp, d, dp))
+
+    new_edges: List[Tuple[str, str, str, str]] = []
+
+    # 1. Keep all direct edges that do NOT involve an x-node
+    for s, sp, d, dp in edges_raw:
+        if s.startswith("x") or d.startswith("x"):
+            continue
+        new_edges.append((s, sp, d, dp))
+
+    # 2. For every x-node, connect its fanin sources directly to its fanout sinks
+    x_nodes = set([n for n in fanin.keys() if n.startswith("x")] +
+                  [n for n in fanout.keys() if n.startswith("x")])
+
+    for x in x_nodes:
+        ins = fanin.get(x, [])
+        outs = fanout.get(x, [])
+        # print(f"x node {x}: ins: {ins}, outs: {outs}")
+        for (a, a_port, _x1, _x1_port) in ins:
+            for (_x2, _x2_port, b, b_port) in outs:
+                # Skip if the collapsed edge would still go through another x node
+                if a.startswith("x") or b.startswith("x"):
+                    continue
+                new_edges.append((a, a_port, b, b_port))
+                print(f"new edge: {a} {a_port} {b} {b_port}")
+
+    return new_edges
+
 def build_semantic_graph(
     lib_pin_dirs: Dict[str, Dict[str, str]],
     var_nodes: Dict[str, VarNode],

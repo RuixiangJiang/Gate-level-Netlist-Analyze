@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 class VarNode:
     dot_id: str
     name: str
+    category: str = "mid"
 
 @dataclass
 class GateNode:
