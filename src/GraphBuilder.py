@@ -48,7 +48,7 @@ def collapse_x_nodes(edges_raw: List[Tuple[str, str, str, str]]) -> List[Tuple[s
                 if a.startswith("x") or b.startswith("x"):
                     continue
                 new_edges.append((a, a_port, b, b_port))
-                print(f"new edge: {a} {a_port} {b} {b_port}")
+                # print(f"new edge: {a} {a_port} {b} {b_port}")
 
     return new_edges
 
@@ -59,6 +59,19 @@ def build_semantic_graph(
     edges_raw: List[Tuple[str, str, str, str]],
 ) -> Tuple[List[Tuple[str, str]], Dict[str, Dict[str, str]]]:
     """
+    Convert raw DOT edges to directed semantic edges.
+
+    We now handle four edge shapes:
+      1. n -> c  (variable/net -> gate pin)
+         - if that pin is an INPUT  pin: var -> gate
+         - if that pin is an OUTPUT pin: gate -> var  (reverse)
+      2. c -> n  (gate pin -> variable/net)
+         - usually gate -> var
+      3. n -> n  (net-to-net connection, or collapsed through x-nodes)
+         - keep as varA -> varB using DOT edge direction
+      4. c -> c  (gate-to-gate direct connection after collapsing x-nodes)
+         - keep as gateA -> gateB using DOT edge direction
+
     Returns:
       edges_sem: [ (source_name, target_name) ]
       node_meta: { name: { 'type': 'variable'|'gate', 'cell': str, 'inst': str } }
@@ -80,8 +93,6 @@ def build_semantic_graph(
 
     for (src, srcp, dst, dstp) in edges_raw:
         # print(f"src: {src}, srcp: {srcp}, dst: {dst}: {dstp}")
-        if dst not in gates or src not in var_nodes:
-            continue
         # n -> c : variable to gate pin (dstp)
         if src.startswith("n") and dst.startswith("c"):
             g = gates[dst]
@@ -113,7 +124,27 @@ def build_semantic_graph(
                 # Unknown direction: assume gate drives variable (common case)
                 edges_sem.append((gname, vname))
 
-        # Otherwise (n->n / c->c)：ignore
+        # n -> n : net-to-net (after collapsing x-nodes, or direct bus split/merge)
+        elif src.startswith("n") and dst.startswith("n"):
+            # print(f"src: {src}, dst: {dst}")
+            if src not in var_nodes or dst not in var_nodes:
+                continue
+            v_src = var_nodes[src].name
+            v_dst = var_nodes[dst].name
+            # print(f"v_src: {v_src}, v_dst: {v_dst}\n")
+            # Keep DOT direction: src net "drives" dst net
+            edges_sem.append((v_src, v_dst))
+
+        # c -> c : gate-to-gate (possible after collapsing x-nodes)
+        elif src.startswith("c") and dst.startswith("c"):
+            if src not in gates or dst not in gates:
+                continue
+            g_src = gates[src]
+            g_dst = gates[dst]
+            # Keep DOT direction: src gate "drives" dst gate
+            edges_sem.append((gate_display_name(g_src), gate_display_name(g_dst)))
+
+        # ignore anything else (shouldn't appear after collapse_x_nodes)
         else:
             continue
 
